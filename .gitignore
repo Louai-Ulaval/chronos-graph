@@ -1,0 +1,8 @@
+.venv/
+build/
+*.so
+*.pyd
+*.egg-info/
+__pycache__/
+.pytest_cache/
+benchmark_results.json

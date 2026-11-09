@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=77", "wheel", "pybind11>=2.12"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chronos-graph"
+version = "1.0.0"
+description = "C++20-accelerated AST codebase graph engine, hybrid GraphRAG retriever, MCP server and self-healing sandboxed debugging agent."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+  "pybind11>=2.12",
+  "networkx>=3.0",
+  "mcp[cli]>=1.2",
+  "fastapi>=0.110",
+  "uvicorn>=0.27",
+  "websockets>=12",
+  "numpy>=1.24",
+  "rich>=13",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "httpx>=0.27"]
+llm = ["anthropic>=0.40"]
+
+[project.scripts]
+chronos-mcp = "chronos.mcp_server:main"
+chronos-api = "chronos.api_server:main"
+chronos-bench = "chronos.benchmark:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+packages = ["chronos"]
+
+# The C++ extension (chronos_cpp) is declared in setup.py, because its include
+# path comes from the installed pybind11. Compiler flags: -O3 -std=c++20,
+# no x86-only flags, so the same build works on arm64 (Apple Silicon) and x86_64.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"

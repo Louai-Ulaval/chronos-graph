@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chronos-Graph</title>
+<style>
+  :root {
+    --bg: #05070a;
+    --panel: #0b0f14;
+    --panel-2: #10161d;
+    --line: #1b232d;
+    --line-2: #26313d;
+    --text: #e6edf3;
+    --muted: #8a97a6;
+    --faint: #56616e;
+    --accent: #00ff88;
+    --accent-2: #00c96b;
+    --accent-dim: rgba(0, 255, 136, 0.12);
+    --amber: #ffb547;
+    --red: #ff5d6c;
+    --py: #9fb3c8;
+    --cpp: #6f8fb0;
+    --radius: 10px;
+    --font: "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.45 var(--font); }
+  body { display: grid; grid-template-rows: 52px 1fr; overflow: hidden; }
+  .num { font-variant-numeric: tabular-nums; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+
+  /* ---------- top bar ---------- */
+  header { display: flex; align-items: center; gap: 14px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 650; letter-spacing: -0.01em; font-size: 15px; white-space: nowrap; }
+  .brand-mark { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--accent); position: relative; box-shadow: 0 0 12px rgba(0,255,136,.35); }
+  .brand-mark::after { content: ""; position: absolute; left: 50%; top: 2px; width: 2px; height: 6px; background: var(--accent); transform: translateX(-50%); border-radius: 2px; }
+  .root { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+  .badge { padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+  .badge.live { color: var(--accent); border-color: rgba(0,255,136,.35); }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); margin-right: 6px; vertical-align: 1px; }
+  .badge.live .dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 8px; overflow: hidden; }
+  .seg button { background: none; border: 0; padding: 5px 12px; cursor: pointer; color: var(--muted); }
+  .seg button.on { background: var(--accent-dim); color: var(--accent); }
+
+  /* ---------- layout ---------- */
+  main { display: grid; grid-template-columns: 330px 1fr 350px; min-height: 0; }
+  aside { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; min-height: 0; }
+  aside.right { border-right: 0; border-left: 1px solid var(--line); }
+  section { padding: 16px; border-bottom: 1px solid var(--line); }
+  h2 { margin: 0 0 10px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .stage { position: relative; min-width: 0; min-height: 0; display: grid; grid-template-rows: 1fr auto; }
+  #graphWrap { position: relative; overflow: hidden; min-height: 0; }
+  #graph { position: absolute; inset: 0; }
+  #graph canvas { display: block; }
+
+  /* ---------- controls ---------- */
+  textarea, input[type=text] { width: 100%; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 9px 10px; outline: none; resize: vertical; }
+  textarea:focus, input[type=text]:focus { border-color: rgba(0,255,136,.5); box-shadow: 0 0 0 3px rgba(0,255,136,.08); }
+  .row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .row label { color: var(--muted); width: 92px; flex: none; }
+  .row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .row output { width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; padding: 8px 12px; border: 1px solid var(--line-2); background: var(--panel-2); cursor: pointer; transition: border-color .15s, background .15s; }
+  .btn:hover { border-color: var(--faint); }
+  .btn.primary { background: var(--accent); color: #02130a; border-color: var(--accent); font-weight: 600; }
+  .btn.primary:hover { background: #3dffa3; }
+  .btn:disabled { opacity: .5; cursor: progress; }
+  .btn.block { width: 100%; margin-top: 12px; }
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+
+  /* ---------- results ---------- */
+  .meter { height: 6px; background: var(--panel-2); border-radius: 999px; overflow: hidden; margin: 8px 0 4px; }
+  .meter > div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+  .muted { color: var(--muted); }
+  .small { font-size: 11.5px; }
+  .hits { list-style: none; margin: 10px 0 0; padding: 0; }
+  .hits li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 7px 8px; border-radius: 8px; cursor: pointer; }
+  .hits li:hover { background: var(--panel-2); }
+  .hits .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hits .name b { font-weight: 600; }
+  .hits .meta { grid-column: 1 / -1; color: var(--faint); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag { font-size: 10.5px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--muted); }
+  .tag.seed { color: var(--accent); border-color: rgba(0,255,136,.4); }
+  .bar { height: 3px; border-radius: 3px; background: var(--accent-2); grid-column: 1 / -1; opacity: .8; }
+
+  /* ---------- telemetry ---------- */
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tile { background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+  .tile .k { color: var(--muted); font-size: 11px; }
+  .tile .v { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .tile .v small { font-size: 11px; color: var(--muted); font-weight: 500; margin-left: 2px; }
+  #spark { width: 100%; height: 54px; display: block; margin-top: 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius); }
+
+  /* ---------- inspector ---------- */
+  .sig { font-weight: 600; word-break: break-word; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chip { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line-2); cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  pre.code { margin: 10px 0 0; padding: 10px 12px; background: #070a0e; border: 1px solid var(--line); border-radius: var(--radius); overflow: auto; max-height: 340px; font: 12px/1.55 var(--font); font-variant-numeric: tabular-nums; tab-size: 4; white-space: pre; color: #c9d4df; }
+  .diff .add { color: var(--accent); }
+  .diff .del { color: var(--red); }
+  .diff .hdr { color: var(--muted); }
+
+  /* ---------- trace drawer ---------- */
+  .drawer { border-top: 1px solid var(--line); background: var(--panel); max-height: 34vh; display: grid; grid-template-rows: auto 1fr; min-height: 0; }
+  .drawer-head { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .states { display: flex; gap: 4px; flex-wrap: wrap; }
+  .state { font-size: 10.5px; letter-spacing: .05em; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--faint); }
+  .state.done { color: var(--muted); border-color: var(--line-2); }
+  .state.on { color: #02130a; background: var(--accent); border-color: var(--accent); }
+  .state.on.warn { background: var(--amber); border-color: var(--amber); }
+  .state.on.bad { background: var(--red); border-color: var(--red); }
+  .log { overflow-y: auto; padding: 6px 14px 10px; min-height: 0; }
+  .log div { display: grid; grid-template-columns: 64px 86px 1fr; gap: 10px; padding: 2px 0; font-variant-numeric: tabular-nums; }
+  .log .t { color: var(--faint); }
+  .log .s { color: var(--muted); font-size: 11px; letter-spacing: .04em; }
+  .log .s.HEALED { color: var(--accent); }
+  .log .s.ROLLBACK { color: var(--amber); }
+  .log .s.FAILED { color: var(--red); }
+
+  /* ---------- overlays ---------- */
+  .legend { position: absolute; left: 14px; bottom: 12px; display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 11.5px; pointer-events: none; }
+  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+  .toast { position: absolute; right: 14px; top: 12px; background: rgba(11,15,20,.92); border: 1px solid var(--line-2); padding: 8px 12px; border-radius: 8px; color: var(--muted); opacity: 0; transition: opacity .25s; pointer-events: none; max-width: 60%; }
+  .toast.show { opacity: 1; }
+  .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); pointer-events: none; }
+  table.bench { width: 100%; border-collapse: collapse; margin-top: 10px; font-variant-numeric: tabular-nums; font-size: 12px; }
+  table.bench th, table.bench td { text-align: right; padding: 5px 4px; border-bottom: 1px solid var(--line); }
+  table.bench th:first-child, table.bench td:first-child { text-align: left; }
+  table.bench th { color: var(--muted); font-weight: 500; }
+  table.bench td.win { color: var(--accent); font-weight: 600; }
+  details summary { cursor: pointer; color: var(--muted); margin-top: 10px; }
+
+  @media (max-width: 1100px) {
+    main { grid-template-columns: 290px 1fr; }
+    aside.right { display: none; }
+  }
+  @media (max-width: 760px) {
+    body { overflow: auto; grid-template-rows: auto 1fr; }
+    header { flex-wrap: wrap; padding: 10px 16px; gap: 8px; }
+    .root { flex-basis: 100%; order: 3; }
+    main { grid-template-columns: 1fr; }
+    aside { border-right: 0; }
+    aside.right { display: block; border-left: 0; }
+    .stage { height: 70vh; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="brand-mark"></span>Chronos-Graph</div>
+  <div class="root" id="root">connecting…</div>
+  <span class="badge" id="engine">engine</span>
+  <span class="badge" id="conn"><span class="dot"></span>offline</span>
+  <div class="seg" role="group" aria-label="Graph mode">
+    <button id="m2d" class="on">2D</button><button id="m3d">3D</button>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <section>
+      <h2>GraphRAG query</h2>
+      <textarea id="q" rows="3" placeholder="e.g. how is the token budget enforced when pruning the subgraph?">how does the pruner keep the subgraph inside the token budget</textarea>
+      <div class="row"><label for="budget">Token budget</label><input id="budget" type="range" min="500" max="16000" step="250" value="3000"><output id="budgetV" class="num">3000</output></div>
+      <div class="row"><label for="hops">Hops</label><input id="hops" type="range" min="0" max="4" step="1" value="2"><output id="hopsV" class="num">2</output></div>
+      <div class="row"><label for="cw">Centrality</label><input id="cw" type="range" min="0" max="1" step="0.05" value="0.25"><output id="cwV" class="num">0.25</output></div>
+      <button class="btn primary block" id="go">Retrieve context</button>
+      <div id="res" hidden>
+        <div class="meter"><div id="meter"></div></div>
+        <div class="small muted num" id="resMeta"></div>
+        <ul class="hits" id="hits"></ul>
+        <details><summary>Rendered context</summary><pre class="code" id="ctx"></pre></details>
+      </div>
+    </section>
+    <section>
+      <h2>Self-healing agent</h2>
+      <div class="small muted">Creates a demo project with a planted off-by-one bug, then reproduces, localises on the call graph, patches in parallel sandboxes and verifies.</div>
+      <button class="btn primary block" id="heal">Run self-heal demo</button>
+      <div id="healOut" hidden><pre class="code diff" id="diff"></pre></div>
+    </section>
+    <section>
+      <h2>Repository</h2>
+      <input type="text" id="path" placeholder="/path/to/repo">
+      <div class="btns">
+        <button class="btn" id="reindex">Index</button>
+        <button class="btn" id="bench">Benchmark</button>
+      </div>
+      <div id="benchOut"></div>
+    </section>
+  </aside>
+
+  <div class="stage">
+    <div id="graphWrap">
+      <div id="graph"></div>
+      <div class="empty" id="empty">Indexing repository…</div>
+      <div class="legend">
+        <span><i style="background:var(--py)"></i>Python</span>
+        <span><i style="background:var(--cpp)"></i>C/C++</span>
+        <span><i style="background:var(--accent)"></i>retrieved</span>
+        <span><i style="background:var(--amber)"></i>suspect</span>
+        <span><i style="background:var(--red)"></i>failing</span>
+      </div>
+      <div class="toast" id="toast"></div>
+    </div>
+    <div class="drawer">
+      <div class="drawer-head">
+        <h2 style="margin:0">Agent trace</h2>
+        <div class="states" id="states"></div>
+        <span class="small muted num" id="healMeta" style="margin-left:auto"></span>
+      </div>
+      <div class="log" id="log"><div><span class="t"></span><span class="s"></span><span class="muted">Idle. Run the self-heal demo or call <b>self_heal</b> over MCP.</span></div></div>
+    </div>
+  </div>
+
+  <aside class="right">
+    <section>
+      <h2>Live telemetry</h2>
+      <div class="tiles">
+        <div class="tile"><div class="k">Symbols</div><div class="v" id="tNodes">–</div></div>
+        <div class="tile"><div class="k">Edges</div><div class="v" id="tEdges">–</div></div>
+        <div class="tile"><div class="k">Query p50</div><div class="v" id="tP50">–</div></div>
+        <div class="tile"><div class="k">Query p95</div><div class="v" id="tP95">–</div></div>
+        <div class="tile"><div class="k">Queries</div><div class="v" id="tQ">0</div></div>
+        <div class="tile"><div class="k">Peak RSS</div><div class="v" id="tRss">–</div></div>
+      </div>
+      <canvas id="spark"></canvas>
+      <div class="small muted num" id="sparkMeta" style="margin-top:6px">retrieval latency, last 60 queries</div>
+    </section>
+    <section>
+      <h2>Symbol inspector</h2>
+      <div id="insp" class="muted">Click a node to inspect it.</div>
+    </section>
+  </aside>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/force-graph@1.51.4/dist/force-graph.min.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const C = { accent: css("--accent"), amber: css("--amber"), red: css("--red"), py: css("--py"), cpp: css("--cpp"), faint: css("--faint"), text: css("--text") };
+  const STATES = ["REPRODUCE", "LOCALIZE", "PROPOSE", "APPLY", "VERIFY", "ROLLBACK", "HEALED"];
+  const fmt = new Intl.NumberFormat("en-US");
+
+  const hl = { hits: new Set(), seeds: new Set(), suspects: new Set(), failing: new Set(), healed: null, path: new Set(), flash: null };
+  let data = { nodes: [], links: [] };
+  let fitPending = false, mode = "2d", graph = null, graph3d = null, latencies = [], healStart = 0, version = -1;
+
+  async function api(path, opts = {}) {
+    const res = await fetch(path, { headers: { "content-type": "application/json" }, ...opts });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+    return res.json();
+  }
+  function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2600); }
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const anyHighlight = () => hl.hits.size || hl.suspects.size || hl.path.size || hl.healed;
+
+  // ---------- graph rendering ----------
+  function nodeColor(n) {
+    if (hl.healed === n.id) return C.accent;
+    if (hl.failing.has(n.id)) return C.red;
+    if (hl.suspects.has(n.id)) return C.amber;
+    if (hl.hits.has(n.id) || hl.path.has(n.id)) return C.accent;
+    return n.lang === "python" ? C.py : C.cpp;
+  }
+  const radius = (n) => 2.2 + Math.sqrt(n.pagerank || 0) * 9 + (n.kind === "class" || n.kind === "module" || n.kind === "file" ? 1.5 : 0);
+  const isLit = (n) => hl.healed === n.id || hl.failing.has(n.id) || hl.suspects.has(n.id) || hl.hits.has(n.id) || hl.path.has(n.id);
+  const sid = (x) => (typeof x === "object" ? x.id : x);
+  const linkLit = (l) => (hl.hits.has(sid(l.source)) && hl.hits.has(sid(l.target))) || (hl.path.has(sid(l.source)) && hl.path.has(sid(l.target)));
+
+  function drawNode(n, ctx, scale) {
+    const r = radius(n), lit = isLit(n), dim = anyHighlight() && !lit;
+    ctx.globalAlpha = dim ? 0.18 : 1;
+    if (lit) { ctx.shadowColor = nodeColor(n); ctx.shadowBlur = 14; }
+    ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI); ctx.fillStyle = nodeColor(n); ctx.fill();
+    ctx.shadowBlur = 0;
+    if (hl.seeds.has(n.id) || hl.healed === n.id) { ctx.lineWidth = 1.6 / scale; ctx.strokeStyle = "#ffffff"; ctx.stroke(); }
+    if (hl.flash === n.id) { ctx.beginPath(); ctx.arc(n.x, n.y, r + 5 / scale + 3, 0, 2 * Math.PI); ctx.strokeStyle = C.amber; ctx.lineWidth = 2 / scale; ctx.stroke(); }
+    if ((lit && scale > 0.9) || scale > 2.6) {
+      ctx.font = `${(lit ? 600 : 400)} ${11 / scale}px ${css("--font")}`;
+      ctx.fillStyle = lit ? C.text : C.faint; ctx.textBaseline = "middle";
+      ctx.fillText(n.name, n.x + r + 3 / scale, n.y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function build2d() {
+    const el = $("graph");
+    graph = ForceGraph()(el)
+      .backgroundColor("rgba(0,0,0,0)")
+      .nodeId("id")
+      .nodeLabel((n) => `${esc(n.id)}<br><span style="opacity:.7">${esc(n.kind)} · ${esc(n.file)}:${n.line}</span>`)
+      .nodeCanvasObject(drawNode)
+      .nodePointerAreaPaint((n, color, ctx) => { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, radius(n) + 2, 0, 2 * Math.PI); ctx.fill(); })
+      .linkColor((l) => linkLit(l) ? "rgba(0,255,136,.75)" : l.kind === "call" ? "rgba(140,160,180,.22)" : l.kind === "contains" ? "rgba(140,160,180,.07)" : "rgba(140,160,180,.14)")
+      .linkWidth((l) => (linkLit(l) ? 1.6 : 0.6))
+      .linkLineDash((l) => (l.kind === "import" ? [2, 3] : null))
+      .linkDirectionalArrowLength((l) => (l.kind === "call" ? 2.5 : 0))
+      .linkDirectionalArrowRelPos(1)
+      .linkDirectionalParticles((l) => (linkLit(l) ? 2 : 0))
+      .linkDirectionalParticleWidth(2)
+      .linkDirectionalParticleColor(() => C.accent)
+      .d3VelocityDecay(0.3)
+      .cooldownTicks(160)
+      .onNodeClick((n) => inspect(n.id))
+      .onBackgroundClick(() => { clearHighlight(); refresh(); })
+      .onEngineStop(() => { if (fitPending) { fitPending = false; graph.zoomToFit(500, 40); } });
+    graph.d3Force("charge").strength(-38);
+    graph.d3Force("link").distance((l) => (l.kind === "contains" ? 18 : 34));
+    new ResizeObserver(() => graph.width(el.clientWidth).height(el.clientHeight)).observe(el);
+  }
+
+  async function build3d() {
+    if (!window.ForceGraph3D) {
+      await new Promise((ok, fail) => {
+        const s = document.createElement("script");
+        s.src = "https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.0/dist/3d-force-graph.min.js";
+        s.onload = ok; s.onerror = () => fail(new Error("could not load 3d-force-graph"));
+        document.head.appendChild(s);
+      });
+    }
+    const el = document.createElement("div");
+    el.id = "graph3d"; el.style.cssText = "position:absolute;inset:0";
+    $("graphWrap").insertBefore(el, $("empty"));
+    graph3d = ForceGraph3D()(el)
+      .backgroundColor(css("--bg"))
+      .nodeId("id")
+      .nodeLabel((n) => esc(n.id))
+      .nodeVal((n) => 1 + (n.pagerank || 0) * 14)
+      .nodeColor(nodeColor)
+      .nodeOpacity(0.92)
+      .linkColor((l) => (linkLit(l) ? C.accent : "#2a3542"))
+      .linkOpacity(0.5)
+      .linkWidth((l) => (linkLit(l) ? 1.2 : 0))
+      .linkDirectionalParticles((l) => (linkLit(l) ? 3 : 0))
+      .linkDirectionalParticleColor(() => C.accent)
+      .onNodeClick((n) => inspect(n.id));
+    new ResizeObserver(() => graph3d.width(el.clientWidth).height(el.clientHeight)).observe(el);
+    graph3d.graphData(clone(data));
+  }
+  const clone = (d) => ({ nodes: d.nodes.map((n) => ({ ...n })), links: d.links.map((l) => ({ source: sid(l.source), target: sid(l.target), kind: l.kind })) });
+
+  function refresh() {
+    if (mode === "2d" && graph) {
+      graph.linkDirectionalParticles(graph.linkDirectionalParticles());  // re-evaluate accessors
+    } else if (graph3d) {
+      graph3d.nodeColor(graph3d.nodeColor()).linkColor(graph3d.linkColor()).linkWidth(graph3d.linkWidth()).linkDirectionalParticles(graph3d.linkDirectionalParticles());
+    }
+  }
+  function clearHighlight() { hl.hits.clear(); hl.seeds.clear(); hl.path.clear(); }
+
+  async function loadGraph() {
+    const g = await api("/api/graph?limit=4000");
+    version = g.version;
+    data = { nodes: g.nodes, links: g.links };
+    $("empty").style.display = g.nodes.length ? "none" : "grid";
+    $("empty").textContent = "No Python or C/C++ files found.";
+    $("root").textContent = g.root;
+    if (!$("path").value) $("path").value = g.root;
+    graph.graphData(data);
+    if (graph3d) graph3d.graphData(clone(data));
+    fitPending = true;
+    setTimeout(() => fitPending && graph.zoomToFit(400, 40), 1200);
+  }
+
+  function focus(ids) {
+    if (mode !== "2d" || !ids.length) return;
+    const pts = data.nodes.filter((n) => ids.includes(n.id) && n.x !== undefined);
+    if (!pts.length) return;
+    const cx = pts.reduce((a, n) => a + n.x, 0) / pts.length, cy = pts.reduce((a, n) => a + n.y, 0) / pts.length;
+    graph.centerAt(cx, cy, 600);
+  }
+
+  // ---------- retrieval ----------
+  for (const [id, out] of [["budget", "budgetV"], ["hops", "hopsV"], ["cw", "cwV"]]) {
+    $(id).addEventListener("input", () => ($(out).textContent = $(id).value));
+  }
+  async function retrieve() {
+    const query = $("q").value.trim();
+    if (!query) return;
+    $("go").disabled = true;
+    try {
+      const r = await api("/api/retrieve", { method: "POST", body: JSON.stringify({ query, token_budget: +$("budget").value, hops: +$("hops").value, centrality_weight: +$("cw").value }) });
+      showRetrieval(r);
+    } catch (e) { toast(e.message); }
+    finally { $("go").disabled = false; }
+  }
+  function showRetrieval(r) {
+    $("res").hidden = false;
+    $("meter").style.width = `${Math.min(100, (100 * r.tokens_used) / r.token_budget)}%`;
+    $("resMeta").textContent = `${r.nodes.length} symbols · ${fmt.format(r.tokens_used)} / ${fmt.format(r.token_budget)} tokens · ${r.candidates} candidates · vector ${r.timings.vector_ms} ms · graph ${r.timings.graph_ms} ms`;
+    const max = Math.max(...r.nodes.map((n) => n.score), 1e-9);
+    $("hits").innerHTML = r.nodes.slice(0, 40).map((n) => `
+      <li data-id="${esc(n.id)}">
+        <span class="name"><b>${esc(n.name)}</b> <span class="muted small">${esc(n.kind)}</span></span>
+        <span class="tag ${n.seed ? "seed" : ""}">${n.seed ? "seed" : "hop " + n.distance}</span>
+        <span class="meta num">${esc(n.file)}:${n.line} · ${n.token_cost} tok · score ${n.score.toFixed(3)}</span>
+        <span class="bar" style="width:${(100 * n.score) / max}%"></span>
+      </li>`).join("");
+    $("ctx").textContent = r.context || "";
+  }
+  $("hits").addEventListener("click", (e) => { const li = e.target.closest("li"); if (li) inspect(li.dataset.id); });
+  $("go").addEventListener("click", retrieve);
+  $("q").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) retrieve(); });
+
+  // ---------- inspector ----------
+  async function inspect(id) {
+    try {
+      const s = await api(`/api/symbol?id=${encodeURIComponent(id)}`);
+      const chips = (arr) => arr.length ? `<div class="chips">${arr.slice(0, 24).map((c) => `<span class="chip" data-id="${esc(c)}" title="${esc(c)}">${esc(c.split(/\.|::/).pop())}</span>`).join("")}</div>` : `<div class="small muted">none</div>`;
+      $("insp").innerHTML = `
+        <div class="sig">${esc(s.signature || s.name)}</div>
+        <div class="small muted num" style="margin-top:4px">${esc(s.id)}</div>
+        <div class="small muted num">${esc(s.file)}:${s.line}–${s.end_line} · ${s.token_cost} tokens · PageRank ${s.pagerank.toExponential(2)}</div>
+        ${s.docstring ? `<div style="margin-top:8px">${esc(s.docstring.split("\n\n")[0])}</div>` : ""}
+        <div style="margin-top:10px" class="small muted">Called by</div>${chips(s.callers)}
+        <div style="margin-top:8px" class="small muted">Calls</div>${chips(s.callees)}
+        <pre class="code">${esc(s.source || "")}</pre>`;
+      hl.path = new Set([id]);
+      refresh(); focus([id]);
+    } catch (e) { toast(e.message); }
+  }
+  $("insp").addEventListener("click", (e) => { const c = e.target.closest(".chip"); if (c) inspect(c.dataset.id); });
+
+  // ---------- healer ----------
+  function setStates(active, kind = "") {
+    const idx = STATES.indexOf(active);
+    $("states").innerHTML = STATES.map((s, i) => `<span class="state ${s === active ? "on " + kind : i < idx ? "done" : ""}">${s}</span>`).join("");
+  }
+  setStates(null);
+  function log(state, msg) {
+    const t = healStart ? `+${((Date.now() - healStart) / 1000).toFixed(2)}s` : "";
+    const row = document.createElement("div");
+    row.innerHTML = `<span class="t">${t}</span><span class="s ${state}">${state}</span><span>${esc(msg)}</span>`;
+    $("log").appendChild(row);
+    $("log").scrollTop = $("log").scrollHeight;
+  }
+  $("heal").addEventListener("click", async () => {
+    $("heal").disabled = true;
+    $("log").innerHTML = ""; $("healOut").hidden = true; healStart = Date.now();
+    hl.suspects.clear(); hl.failing.clear(); hl.healed = null; clearHighlight();
+    try { await api("/api/heal", { method: "POST", body: JSON.stringify({ demo: true, apply: true }) }); }
+    catch (e) { toast(e.message); $("heal").disabled = false; }
+  });
+  function onHeal(ev) {
+    if (!healStart) healStart = Date.now();
+    const kind = ev.state === "ROLLBACK" ? "warn" : ev.state === "FAILED" ? "bad" : "";
+    if (STATES.includes(ev.state)) setStates(ev.state, kind);
+    log(ev.state, ev.message);
+    if (ev.state === "REPRODUCE" && ev.test) {
+      $("healMeta").textContent = ev.test.summary;
+      hl.failing = new Set(ev.test.failures.map((f) => testSymbol(f.test_id)).filter(Boolean));
+    }
+    if (ev.suspects) { hl.suspects = new Set(ev.suspects.map((s) => s.symbol)); focus([...hl.suspects]); }
+    if (ev.state === "APPLY" && ev.patch) hl.flash = ev.patch.target;
+    if (ev.state === "HEALED" && ev.patch) { hl.healed = ev.patch.target; hl.flash = null; hl.suspects.delete(ev.patch.target); }
+    refresh();
+  }
+  function testSymbol(nodeId) {
+    const [path, ...rest] = nodeId.split("::");
+    const mod = path.replace(/\.py$/, "").replace(/^(src|lib)\//, "").split("/").join(".");
+    return `${mod}.${rest.join(".").replace(/\[.*\]$/, "")}`;
+  }
+  function onHealDone(ev) {
+    $("heal").disabled = false;
+    $("healMeta").textContent = `${ev.success ? "healed" : "not healed"} · ${ev.attempts ?? 0} attempts · ${ev.duration_ms ? (ev.duration_ms / 1000).toFixed(2) + "s" : ""}`;
+    if (ev.diff) {
+      $("healOut").hidden = false;
+      $("diff").innerHTML = ev.diff.split("\n").map((l) => `<span class="${l.startsWith("+++") || l.startsWith("---") || l.startsWith("@@") ? "hdr" : l.startsWith("+") ? "add" : l.startsWith("-") ? "del" : ""}">${esc(l)}</span>`).join("\n");
+    }
+    if (ev.success) { hl.failing.clear(); if (ev.target) hl.healed = ev.target; }
+    if (!ev.success) setStates("HEALED", "bad");
+    toast(ev.message || (ev.success ? "Healed" : "Not healed"));
+    refresh();
+  }
+
+  // ---------- repo + benchmark ----------
+  $("reindex").addEventListener("click", async () => {
+    $("reindex").disabled = true;
+    hl.suspects.clear(); hl.failing.clear(); hl.healed = null; clearHighlight();
+    try { await api("/api/index", { method: "POST", body: JSON.stringify({ path: $("path").value.trim() || null }) }); }
+    catch (e) { toast(e.message); }
+    finally { $("reindex").disabled = false; }
+  });
+  $("bench").addEventListener("click", async () => {
+    $("bench").disabled = true; $("benchOut").innerHTML = `<div class="small muted" style="margin-top:10px">Running C++ vs NetworkX on 20,000 nodes…</div>`;
+    try {
+      const b = await api("/api/benchmark", { method: "POST", body: JSON.stringify({ nodes: 20000, queries: 100 }) });
+      $("benchOut").innerHTML = `<table class="bench"><tr><th>op</th><th>C++</th><th>NetworkX</th><th>×</th></tr>${b.results.map((r) =>
+        `<tr><td>${esc(r.op.replace(/ x\d+/, ""))}</td><td>${r.cpp_ms.toFixed(1)}</td><td>${r.networkx_ms.toFixed(1)}</td><td class="win">${r.speedup}${r.matches ? "" : " ⚠"}</td></tr>`).join("")}</table>
+        <div class="small muted num" style="margin-top:6px">${fmt.format(b.graph.edges)} edges · times in ms · ${esc(b.networkx_pagerank_impl)}</div>`;
+    } catch (e) { $("benchOut").innerHTML = ""; toast(e.message); }
+    finally { $("bench").disabled = false; }
+  });
+
+  // ---------- telemetry ----------
+  function onTelemetry(t) {
+    $("tNodes").textContent = fmt.format(t.nodes);
+    $("tEdges").textContent = fmt.format(t.edges);
+    $("tP50").innerHTML = t.latency_p50_ms == null ? "–" : `${t.latency_p50_ms.toFixed(2)}<small>ms</small>`;
+    $("tP95").innerHTML = t.latency_p95_ms == null ? "–" : `${t.latency_p95_ms.toFixed(2)}<small>ms</small>`;
+    $("tQ").textContent = fmt.format(t.queries);
+    $("tRss").innerHTML = `${Math.round(t.rss_peak_mb)}<small>MB</small>`;
+  }
+  function drawSpark() {
+    const cv = $("spark"), dpr = window.devicePixelRatio || 1;
+    cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr;
+    const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
+    const w = cv.clientWidth, h = cv.clientHeight, pad = 6;
+    ctx.clearRect(0, 0, w, h);
+    if (latencies.length < 2) return;
+    const max = Math.max(...latencies) * 1.15;
+    ctx.beginPath();
+    latencies.forEach((v, i) => {
+      const x = pad + (i / (latencies.length - 1)) * (w - 2 * pad), y = h - pad - (v / max) * (h - 2 * pad);
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    });
+    ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.shadowColor = C.accent; ctx.shadowBlur = 6; ctx.stroke();
+    $("sparkMeta").textContent = `retrieval latency · last ${latencies.length} · max ${Math.max(...latencies).toFixed(2)} ms`;
+  }
+  window.addEventListener("resize", drawSpark);
+
+  // ---------- websocket ----------
+  let retry = 500;
+  function connect() {
+    const sock = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
+    sock.onopen = () => { retry = 500; $("conn").className = "badge live"; $("conn").innerHTML = `<span class="dot"></span>live`; };
+    sock.onclose = () => { $("conn").className = "badge"; $("conn").innerHTML = `<span class="dot"></span>offline`; setTimeout(connect, (retry = Math.min(retry * 2, 8000))); };
+    sock.onmessage = (m) => {
+      const ev = JSON.parse(m.data);
+      switch (ev.type) {
+        case "hello": $("root").textContent = ev.root; if (ev.indexed && ev.version !== version) loadGraph(); break;
+        case "telemetry": onTelemetry(ev); break;
+        case "index":
+          if (ev.phase === "progress") $("root").textContent = `indexing ${ev.done}/${ev.total} · ${ev.file}`;
+          if (ev.phase === "done") { $("root").textContent = ev.stats.root; $("path").value = ev.stats.root; loadGraph(); toast(`Indexed ${fmt.format(ev.stats.symbols)} symbols in ${ev.stats.elapsed_ms} ms`); }
+          break;
+        case "retrieval":
+          hl.hits = new Set(ev.nodes); hl.seeds = new Set(ev.seeds); hl.path.clear();
+          latencies.push(ev.timings.total_ms); latencies = latencies.slice(-60); drawSpark();
+          if (ev.source === "mcp") toast(`MCP retrieve_context: “${ev.query.slice(0, 60)}”`);
+          refresh(); focus(ev.seeds);
+          break;
+        case "path": hl.path = new Set(ev.nodes); refresh(); break;
+        case "heal": onHeal(ev); break;
+        case "heal_done": onHealDone(ev); break;
+      }
+    };
+  }
+
+  // ---------- boot ----------
+  $("m2d").addEventListener("click", () => {
+    mode = "2d"; $("m2d").classList.add("on"); $("m3d").classList.remove("on");
+    if (graph3d) { graph3d._destructor?.(); $("graph3d")?.remove(); graph3d = null; }
+    refresh();
+  });
+  $("m3d").addEventListener("click", async () => {
+    if (mode === "3d") return;
+    mode = "3d"; $("m3d").classList.add("on"); $("m2d").classList.remove("on");
+    try { await build3d(); } catch (e) { toast(e.message); $("m2d").click(); }
+  });
+
+  build2d();
+  api("/api/health").then((h) => { $("engine").textContent = `C++${String(h.cplusplus).slice(2, 4)} · ${h.arch}`; $("root").textContent = h.root; if (h.indexed) loadGraph(); }).catch(() => {});
+  connect();
+})();
+</script>
+</body>
+</html>

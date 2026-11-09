@@ -1,0 +1,16 @@
+pybind11>=2.12
+networkx>=3.0
+mcp[cli]>=1.2
+fastapi>=0.110
+uvicorn>=0.27
+websockets>=12
+pytest>=8
+rich>=13
+numpy>=1.24
+setuptools>=77
+# FastAPI's TestClient (used by the test suite) needs httpx
+httpx>=0.27
+# makes networkx.pagerank use its fast sparse path, so the benchmark compares against the best NetworkX can do
+scipy>=1.11
+# optional: the Claude patch proposer (only used when ANTHROPIC_API_KEY or CHRONOS_LLM=1 is set)
+anthropic>=0.40
