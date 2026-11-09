@@ -875,16 +875,22 @@ class _Resolver:
             for cls, names in fp.members.items():
                 self.members[cls] |= names
         self.by_short: dict[str, list[str]] = defaultdict(list)
+        self.by_short_fn: dict[str, list[str]] = defaultdict(list)  # functions + classes: reachable as bare name()
+        self.by_short_m: dict[str, list[str]] = defaultdict(list)   # methods: reachable as obj.name()
+        self.cpp_methods: dict[str, list[str]] = defaultdict(list)
         self.cpp_by_short: dict[str, list[str]] = defaultdict(list)
         self.cpp_by_suffix: dict[str, list[str]] = defaultdict(list)
         for sid, s in self.syms.items():
             if s.kind in ("function", "method", "class"):
                 if s.language == "python":
                     self.by_short[s.name].append(sid)
+                    (self.by_short_m if s.kind == "method" else self.by_short_fn)[s.name].append(sid)
                 else:
                     if "#" in sid:
                         continue
                     self.cpp_by_short[s.name].append(sid)
+                    if s.kind == "method":
+                        self.cpp_methods[s.name].append(sid)
                     parts = sid.lstrip(":").split("::")
                     for k in range(1, len(parts) + 1):
                         self.cpp_by_suffix["::".join(parts[-k:])].append(sid)
@@ -995,7 +1001,7 @@ class _Resolver:
                     return hit
             if n in PY_BUILTINS:
                 return None
-            return self._unique_short(n, self.by_short)
+            return self._unique_short(n, self.by_short_fn)
         if kind in ("self", "super"):
             attr = call.target[1]
             cls = self._class_of(scope)
@@ -1009,7 +1015,7 @@ class _Resolver:
                     hit = self._method_in_class(cls, attr)
                     if hit:
                         return hit
-            return self._unique_short(attr, self.by_short)
+            return self._unique_short(attr, self.by_short_m)
         if kind == "dotted":
             dotted = call.target[1]
             head, _, rest = dotted.partition(".")
@@ -1027,7 +1033,7 @@ class _Resolver:
                 if "." in rest:
                     return self._bound_method(rest.rsplit(".", 1)[1])
                 return None  # call into an external module: leave unresolved
-            return self._unique_short(dotted.rsplit(".", 1)[1], self.by_short)
+            return self._unique_short(dotted.rsplit(".", 1)[1], self.by_short_m)
         if kind == "typed":
             type_expr, attr = call.target[1], call.target[2]
             sub = "dotted" if "." in type_expr else "name"
@@ -1039,13 +1045,13 @@ class _Resolver:
                 hit = self._method_in_class(cls, attr)
                 if hit:
                     return hit
-            return self._unique_short(attr, self.by_short)
+            return self._unique_short(attr, self.by_short_m)
         if kind == "method":
             attr = call.target[1]
-            hit = self._unique_short(attr, self.by_short)
+            hit = self._unique_short(attr, self.by_short_m)
             if hit == scope:  # an unknown receiver calling a same-named method is almost never recursion
                 hit = None
-            if hit is None and set(self.by_short.get(attr, [])) <= {scope}:
+            if hit is None and set(self.by_short_m.get(attr, [])) <= {scope}:
                 hit = self._bound_method(attr)
             return hit
         return None
@@ -1096,7 +1102,7 @@ class _Resolver:
         if kind == "cpp_member":
             # obj.method() / ptr->method(): the receiver type is unknown, so only a
             # repo-unique, non-generic method name is trusted.
-            return self._unique_short(call.target[1], self.cpp_by_short)
+            return self._unique_short(call.target[1], self.cpp_methods)
         return None
 
     # ---- run ------------------------------------------------------------------

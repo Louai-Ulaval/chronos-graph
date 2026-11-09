@@ -111,6 +111,7 @@ class Workspace:
             s = index.symbols[ids[i]]
             nodes.append({
                 "id": s.id, "name": s.name, "kind": s.kind, "lang": s.language, "file": s.file, "line": s.line,
+                "parent": s.parent,
                 "tokens": s.token_cost, "pagerank": round(float(pr[i]) / pr_max, 5), "degree": int(deg[i]),
             })
         src, dst, kind = engine.edge_arrays()
